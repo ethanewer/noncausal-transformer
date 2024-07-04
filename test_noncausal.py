@@ -1,4 +1,5 @@
 import sys
+import time
 import torch
 import torch.nn.functional as F
 from model import DecoderTransformer, DecoderTransformerStack, DecoderTransformerConfig
@@ -6,7 +7,7 @@ from model import DecoderTransformer, DecoderTransformerStack, DecoderTransforme
 
 def test_decoder_transformer_stack(verbose=False) -> None:
     config = DecoderTransformerConfig(n_embd=512, n_head=4, n_layer=8, 
-                                    is_causal=True, loss_fn=F.mse_loss)
+                                      is_causal=True, loss_fn=F.mse_loss)
 
     model = DecoderTransformerStack(config)
 
@@ -29,8 +30,8 @@ def test_decoder_transformer(verbose=False) -> None:
 
     model = DecoderTransformer(config)
 
-    x = torch.randint(512, (10, 20))
-    y = torch.randint(512, (10, 20))
+    x = torch.randint(config.vocab_size, (10, 20))
+    y = torch.randint(config.vocab_size, (10, 20))
 
     y1, l1 = model._DecoderTransformer__causal_forward(x, y)
     y2, l2 = model._DecoderTransformer__noncausal_forward(x, y)
@@ -45,7 +46,7 @@ def test_decoder_transformer(verbose=False) -> None:
 
 def test_decoder_transformer_stack_gradients(verbose=False) -> None:
     config = DecoderTransformerConfig(n_embd=512, n_head=4, n_layer=8, 
-                                    is_causal=True, loss_fn=F.mse_loss)
+                                      is_causal=True, loss_fn=F.mse_loss)
 
     model = DecoderTransformerStack(config)
 
@@ -83,8 +84,8 @@ def test_decoder_transformer_gradients(verbose=False) -> None:
 
     model = DecoderTransformer(config)
 
-    x = torch.randint(512, (10, 20))
-    y = torch.randint(512, (10, 20))
+    x = torch.randint(config.vocab_size, (10, 20))
+    y = torch.randint(config.vocab_size, (10, 20))
 
     model._DecoderTransformer__causal_forward(x, y, backward=True)
     grads1 = {}
@@ -109,6 +110,31 @@ def test_decoder_transformer_gradients(verbose=False) -> None:
 
             assert torch.allclose(g1, g2, rtol=1e-4, atol=1e-5), \
                 "DecoderTransformer gradients don't match"
+            
+
+def test_performance(device: str) -> None:
+    config = DecoderTransformerConfig(
+        block_size=256,
+        n_layer=8,
+        n_head=4,
+        n_embd=512,
+        is_causal=False,
+    )
+
+    model = DecoderTransformer(config).to(device)
+
+    optimizer = model.configure_optimizers(weight_decay=0.1, learning_rate=0.01, 
+                                           betas=(0.9, 0.99), device_type=device)
+    
+    x = torch.randint(config.vocab_size, (10, 20), device=device)
+    y = torch.randint(config.vocab_size, (10, 20), device=device)
+    t0 = time.time()
+
+    model(x, y, backward=True)
+    optimizer.step()
+    optimizer.zero_grad()
+
+    print(f"time: {time.time() - t0:.2f}s")
 
 
 if __name__ == "__main__":
@@ -118,5 +144,5 @@ if __name__ == "__main__":
     test_decoder_transformer(verbose)
     test_decoder_transformer_stack_gradients(verbose)
     test_decoder_transformer_gradients(verbose)
-
-    print("Tests passed")
+    print("Numeric tests passed")
+    test_performance("mps")
