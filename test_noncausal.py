@@ -30,7 +30,7 @@ def test_decoder_transformer(verbose=False) -> None:
 
     model = DecoderTransformer(config)
 
-    x = torch.randint(config.vocab_size, (10, 20))
+    x = torch.randn(10, 20, 512)
     y = torch.randint(config.vocab_size, (10, 20))
 
     y1, l1 = model._DecoderTransformer__causal_forward(x, y)
@@ -84,7 +84,7 @@ def test_decoder_transformer_gradients(verbose=False) -> None:
 
     model = DecoderTransformer(config)
 
-    x = torch.randint(config.vocab_size, (10, 20))
+    x = torch.randn(10, 20, 512)
     y = torch.randint(config.vocab_size, (10, 20))
 
     model._DecoderTransformer__causal_forward(x, y, backward=True)

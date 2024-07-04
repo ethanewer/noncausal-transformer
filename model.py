@@ -1,5 +1,4 @@
 import math
-import inspect
 from typing import Callable
 from dataclasses import dataclass
 
@@ -120,13 +119,8 @@ class DecoderTransformer(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     
-    def __causal_forward(self, idx: Tensor, y=None, backward=False) -> Tensor:
-        pos_idx = torch.arange(0, idx.shape[1], dtype=torch.long, device=idx.device) 
-        pos_emb = self.transformer.wpe(pos_idx)
-        tok_emb = self.transformer.wte(idx)
-        x = self.transformer.drop(tok_emb + pos_emb)
-
-        for block in self.transformer.h:
+    def __causal_forward(self, x: Tensor, y=None, backward=False) -> Tensor:
+        for block in self.transformer.h[1:]:
             x = block(x)
         
         x = self.transformer.ln_f(x)
@@ -140,55 +134,13 @@ class DecoderTransformer(nn.Module):
             loss = None
 
         return x, loss
-    
-
-    # def __noncausal_forward(self, idx: Tensor, y=None, backward=False) -> Tensor:
-    #     T = idx.shape[1]
-
-    #     logits = []
-    #     loss_sum = 0
-    #     for t in range(T):
-    #         pos_idx = torch.arange(0, t + 1, dtype=torch.long, device=idx.device) 
-    #         pos_emb = self.transformer.wpe(pos_idx)
-    #         tok_emb = self.transformer.wte(idx[:, :t + 1])
-    #         x = self.transformer.drop(tok_emb + pos_emb)
-    #         # TODO: Computations up to here are the same for all t. It might be possible to remove 
-    #         # the repeated work if we use loss.backward(retain_graph=True).
-    #         for block in self.transformer.h:
-    #             x = block(x)
-    #         x = x[:, -1:, :]
-    #         x = self.transformer.ln_f(x)
-    #         x = self.lm_head(x)
-    #         if y is not None and self.loss_fn is not None:
-    #             loss = self.loss_fn(x, y[:, t]) / T
-    #             loss_sum += loss.detach()
-    #             if backward:
-    #                 loss.backward()
-
-    #         logits.append(x[:, -1, :].detach())
-        
-    #     logits = torch.stack(logits, dim=1)
-        
-    #     if y is not None and self.loss_fn is not None:
-    #         loss = loss_sum
-    #     else:
-    #         loss = None
-
-    #     return logits, loss
 
 
-    def __noncausal_forward(self, idx: Tensor, y=None, backward=False) -> Tensor:
-        T = idx.shape[1]
-
+    def __noncausal_forward(self, x: Tensor, y=None, backward=False) -> Tensor:
+        T = x.shape[1]
         logits = []
         loss_sum = 0
 
-        pos_idx = torch.arange(0, T, dtype=torch.long, device=idx.device) 
-        pos_emb = self.transformer.wpe(pos_idx)
-        tok_emb = self.transformer.wte(idx)
-        x = self.transformer.drop(tok_emb + pos_emb)
-        x = self.transformer.h[0](x)
-        
         for t in range(T):
             x_t = x[:, :t + 1, :]
             for block in self.transformer.h[1:]:
@@ -215,16 +167,24 @@ class DecoderTransformer(nn.Module):
 
 
     def forward(self, idx: Tensor, target_idx=None, backward=False) -> Tensor:
-        assert idx.shape[1] <= self.config.block_size, \
-            f"Cannot forward sequence of length {idx.shape[1]} > {self.config.block_size}"
+        T = idx.shape[1]
+
+        assert T <= self.config.block_size, \
+            f"Cannot forward sequence of length {T} > {self.config.block_size}"
         
         if backward:
             assert target_idx is not None
 
+        pos_idx = torch.arange(0, T, dtype=torch.int64, device=idx.device) 
+        pos_emb = self.transformer.wpe(pos_idx)
+        tok_emb = self.transformer.wte(idx)
+        x = self.transformer.drop(tok_emb + pos_emb)
+        x = self.transformer.h[0](x)
+
         if self.is_causal:
-            return self.__causal_forward(idx, target_idx, backward)
+            return self.__causal_forward(x, target_idx, backward)
         else:
-            return self.__noncausal_forward(idx, target_idx, backward)
+            return self.__noncausal_forward(x, target_idx, backward)
 
 
     def configure_optimizers(
@@ -242,8 +202,7 @@ class DecoderTransformer(nn.Module):
             {"params": nodecay_params, "weight_decay": 0.0}
         ]
 
-        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
-        use_fused = fused_available and device_type == "cuda"
+        use_fused = device_type == "cuda"
         extra_args = dict(fused=True) if use_fused else dict()
 
         return optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
