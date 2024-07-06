@@ -168,27 +168,27 @@ class DecoderTransformer(nn.Module):
         return logits, loss
 
     def forward(
-        self, idx: Tensor, target_idx=None, backward=False
+        self, idxs: Tensor, target_idxs=None, backward=False
     ) -> tuple[Tensor, float | None]:
-        T = idx.shape[1]
+        T = idxs.shape[1]
 
         assert (
             T <= self.config.block_size
         ), f"Cannot forward sequence of length {T} > {self.config.block_size}"
 
         if backward:
-            assert target_idx is not None
+            assert target_idxs is not None
 
-        pos_idx = torch.arange(0, T, dtype=torch.int64, device=idx.device)
-        pos_emb = self.transformer.wpe(pos_idx)
-        tok_emb = self.transformer.wte(idx)
+        pos_idxs = torch.arange(0, T, dtype=torch.int64, device=idxs.device)
+        pos_emb = self.transformer.wpe(pos_idxs)
+        tok_emb = self.transformer.wte(idxs)
         x = self.transformer.drop(tok_emb + pos_emb)
         x = self.transformer.h[0](x)
 
         if self.is_causal:
-            return self.__causal_forward(x, target_idx, backward)
+            return self.__causal_forward(x, target_idxs, backward)
         else:
-            return self.__noncausal_forward(x, target_idx, backward)
+            return self.__noncausal_forward(x, target_idxs, backward)
 
     def configure_optimizers(
         self,
@@ -210,25 +210,25 @@ class DecoderTransformer(nn.Module):
         return optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
 
     @torch.no_grad()
-    def generate(self, idx: Tensor, max_new_tokens: int, temperature=1.0) -> Tensor:
+    def generate(self, idxs: Tensor, max_new_tokens: int, temperature=1.0) -> Tensor:
         """
-        Take a conditioning sequence of indices `idx`, `int64` tensor with shape `[B, T]`, and
+        Take a conditioning sequence of indices `idxs`, `int64` tensor with shape `[B, T]`, and
         completes the sequence `max_new_tokens` times, feeding the predictions back into the model
         each time.
         """
         for _ in range(max_new_tokens):
-            if idx.shape[1] <= self.config.block_size:
-                cropped_idx = idx
+            if idxs.shape[1] <= self.config.block_size:
+                cropped_idxs = idxs
             else:
-                cropped_idx = idx[:, -self.config.block_size :]
+                cropped_idxs = idxs[:, -self.config.block_size :]
 
-            logits, _ = self(cropped_idx)
+            logits, _ = self(cropped_idxs)
             logits = logits[:, -1, :] / temperature
             probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat((idx, idx_next), dim=1)
+            idxs_next = torch.multinomial(probs, num_samples=1)
+            idxs = torch.cat((idxs, idxs_next), dim=1)
 
-        return idx
+        return idxs
 
 
 class DecoderTransformerStack(nn.Module):
