@@ -30,14 +30,25 @@ class DecoderTransformerStack(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def __causal_forward(
-        self, x: Tensor, y: Tensor | None, backward: bool
+        self,
+        x: Tensor,
+        y: Tensor | None,
+        backward: bool,
+        forward_idxs: list[int] | None,
     ) -> tuple[Tensor, float | None]:
         """Helper method for forward. Causal forward is O(N^2.)"""
         for block in self.stack:
             x = block(x)
 
+        if forward_idxs is not None:
+            x = x[:, forward_idxs, :]
+
         if y is not None and self.loss_fn is not None:
+            if forward_idxs is not None:
+                y = y[:, forward_idxs, :]
+
             loss = self.loss_fn(x, y)
+
             if backward:
                 loss.backward()
         else:
@@ -46,24 +57,31 @@ class DecoderTransformerStack(nn.Module):
         return x, loss
 
     def __noncausal_forward(
-        self, x: Tensor, y: Tensor | None, backward: bool
+        self,
+        x: Tensor,
+        y: Tensor | None,
+        backward: bool,
+        forward_idxs: list[int] | None,
     ) -> tuple[Tensor, float | None]:
         """Helper method for forward. Noncausal forward is O(N^3.)"""
-        T = x.shape[1]
+        if forward_idxs is None:
+            forward_idxs = range(x.shape[1])
+
         logits = []
         loss_sum = 0
         x = self.stack[0](x)
-        for t in range(T):
+        for t in forward_idxs:
             x_t = x[:, : t + 1, :]
             for block in self.stack[1:]:  # type: ignore
                 x_t = block(x_t)
 
             if y is not None and self.loss_fn is not None:
-                loss = self.loss_fn(x_t[:, -1, :], y[:, t]) / T
+                loss = self.loss_fn(x_t[:, -1, :], y[:, t]) / len(forward_idxs)
                 loss_sum += loss.detach()
                 if backward:
                     loss.backward(retain_graph=True)
-                logits.append(x_t[:, -1, :].detach())
+
+            logits.append(x_t[:, -1, :].detach())
 
         logits = torch.stack(logits, dim=1)
         if y is not None and self.loss_fn is not None:
@@ -72,7 +90,13 @@ class DecoderTransformerStack(nn.Module):
             loss = None
         return logits, loss
 
-    def forward(self, x: Tensor, y=None, backward=False) -> tuple[Tensor, float | None]:
+    def forward(
+        self,
+        x: Tensor,
+        y=None,
+        backward=False,
+        forward_idxs: list[int] | None = None,
+    ) -> tuple[Tensor, float | None]:
         assert (
             x.shape[1] <= self.config.block_size
         ), f"Cannot forward sequence of length {x.shape[1]} > {self.config.block_size}"
@@ -81,9 +105,9 @@ class DecoderTransformerStack(nn.Module):
             assert y is not None
 
         if self.is_causal:
-            return self.__causal_forward(x, y, backward)
+            return self.__causal_forward(x, y, backward, forward_idxs)
         else:
-            return self.__noncausal_forward(x, y, backward)
+            return self.__noncausal_forward(x, y, backward, forward_idxs)
 
     def configure_optimizers(
         self,

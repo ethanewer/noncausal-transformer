@@ -19,8 +19,12 @@ def test_decoder_transformer_stack(verbose=False) -> None:
     x = torch.randn(10, 20, 512)
     y = torch.randn(10, 20, 512)
 
-    y1, l1 = model._DecoderTransformerStack__causal_forward(x, y, backward=False)
-    y2, l2 = model._DecoderTransformerStack__noncausal_forward(x, y, backward=False)
+    y1, l1 = model._DecoderTransformerStack__causal_forward(
+        x, y, backward=False, forward_idxs=None
+    )
+    y2, l2 = model._DecoderTransformerStack__noncausal_forward(
+        x, y, backward=False, forward_idxs=None
+    )
 
     if verbose:
         print(
@@ -67,14 +71,18 @@ def test_decoder_transformer_stack_gradients(verbose=False) -> None:
     x = torch.randn(10, 20, 512)
     y = torch.randn(10, 20, 512)
 
-    model._DecoderTransformerStack__causal_forward(x, y, backward=True)
+    model._DecoderTransformerStack__causal_forward(
+        x, y, backward=True, forward_idxs=None
+    )
     grads1 = {}
     for p_name, p in model.named_parameters():
         if p.grad is not None:
             grads1[p_name] = p.grad.clone()
             p.grad.zero_()
 
-    model._DecoderTransformerStack__noncausal_forward(x, y, backward=True)
+    model._DecoderTransformerStack__noncausal_forward(
+        x, y, backward=True, forward_idxs=None
+    )
     grads2 = {}
     for p_name, p in model.named_parameters():
         if p.grad is not None:
@@ -128,6 +136,92 @@ def test_decoder_transformer_gradients(verbose=False) -> None:
             assert torch.allclose(
                 g1, g2, rtol=1e-4, atol=1e-5
             ), "DecoderTransformer gradients don't match"
+
+
+def test_decoder_transformer_stack_forward_idxs(verbose=False) -> None:
+    config = DecoderTransformerConfig(
+        n_embd=512, n_head=4, n_layer=8, is_causal=True, loss_fn=F.mse_loss
+    )
+
+    model = DecoderTransformerStack(config)
+
+    x = torch.randn(10, 20, 512)
+    y = torch.randn(10, 20, 512)
+    forward_idxs = [i for i in range(20) if i % 2]
+
+    y1, l1 = model._DecoderTransformerStack__causal_forward(
+        x, y, backward=False, forward_idxs=forward_idxs
+    )
+    y2, l2 = model._DecoderTransformerStack__noncausal_forward(
+        x, y, backward=False, forward_idxs=forward_idxs
+    )
+    y3 = model(x)[0][:, forward_idxs, :]
+    l3 = F.mse_loss(y3, y[:, forward_idxs, :])
+
+    if verbose:
+        print(
+            f"DecoderTransformerStack outputs mse: {F.mse_loss(y1, y2).detach().item()}"
+        )
+        print(
+            f"DecoderTransformerStack losess mse: {F.mse_loss(l1, l2).detach().item()}"
+        )
+        print(
+            f"DecoderTransformerStack outputs mse: {F.mse_loss(y2, y3).detach().item()}"
+        )
+        print(
+            f"DecoderTransformerStack losess mse: {F.mse_loss(l2, l3).detach().item()}"
+        )
+
+    assert torch.allclose(
+        y1, y2, rtol=1e-4, atol=1e-5
+    ), "DecoderTransformerStack outputs don't match"
+    assert torch.allclose(l1, l2), "DecoderTransformerStack losses don't match"
+    assert torch.allclose(
+        y2, y3, rtol=1e-4, atol=1e-5
+    ), "DecoderTransformerStack outputs don't match"
+    assert torch.allclose(l2, l3), "DecoderTransformerStack losses don't match"
+
+
+def test_decoder_transformer_stack_gradients_forward_idxs(verbose=False) -> None:
+    config = DecoderTransformerConfig(
+        n_embd=512, n_head=4, n_layer=8, is_causal=True, loss_fn=F.mse_loss
+    )
+
+    model = DecoderTransformerStack(config)
+
+    x = torch.randn(10, 20, 512)
+    y = torch.randn(10, 20, 512)
+    forward_idxs = [i for i in range(20) if i % 2]
+
+    model._DecoderTransformerStack__causal_forward(
+        x, y, backward=True, forward_idxs=forward_idxs
+    )
+    grads1 = {}
+    for p_name, p in model.named_parameters():
+        if p.grad is not None:
+            grads1[p_name] = p.grad.clone()
+            p.grad.zero_()
+
+    model._DecoderTransformerStack__noncausal_forward(
+        x, y, backward=True, forward_idxs=forward_idxs
+    )
+    grads2 = {}
+    for p_name, p in model.named_parameters():
+        if p.grad is not None:
+            grads2[p_name] = p.grad.clone()
+            p.grad.zero_()
+
+    for p_name, _ in model.named_parameters():
+        if p.grad is not None:
+            g1 = grads1[p_name]
+            g2 = grads2[p_name]
+            if verbose:
+                mse = F.mse_loss(g1, g2).item()
+                print(f"DecoderTransformerStack[{p_name}] grad mse: {mse}")
+
+            assert torch.allclose(
+                g1, g2, rtol=1e-4, atol=1e-5
+            ), "DecoderTransformerStack gradients don't match"
 
 
 def time_transformer_iter(device: str) -> None:
@@ -190,6 +284,8 @@ if __name__ == "__main__":
     test_decoder_transformer(verbose)
     test_decoder_transformer_stack_gradients(verbose)
     test_decoder_transformer_gradients(verbose)
+    test_decoder_transformer_stack_forward_idxs(verbose)
+    test_decoder_transformer_stack_gradients_forward_idxs(verbose)
     print("Numeric tests passed")
 
     if torch.cuda.is_available():
