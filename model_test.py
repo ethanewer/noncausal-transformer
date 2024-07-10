@@ -2,7 +2,11 @@ import sys
 import time
 import torch
 import torch.nn.functional as F
-from model import DecoderTransformer, DecoderTransformerStack, DecoderTransformerConfig
+from model import (
+    DecoderTransformer,
+    DecoderTransformerStack,
+    DecoderTransformerConfig,
+)
 
 
 def test_decoder_transformer_stack(verbose=False) -> None:

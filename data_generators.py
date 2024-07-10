@@ -51,7 +51,7 @@ class LinearGenerator(BaseGenerator):
         x_rand=torch.randn,
         function_rand=torch.randn,
     ) -> None:
-        """Generates data using a linear mapping from `input_dim` to `1`."""
+        """Generates data using a linear mapping from `input_dim` to `output_dim`."""
         super().__init__()
         assert input_dim >= output_dim
         self.input_dim = input_dim
