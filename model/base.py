@@ -11,6 +11,7 @@ class DecoderTransformerConfig:
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
+    n_dim: int = 20
     dropout: float = 0.0
     bias: bool = True
     is_causal: bool = True

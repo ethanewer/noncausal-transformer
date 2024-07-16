@@ -30,5 +30,6 @@ class LinearGenerator(BaseGenerator):
     def get_function(self) -> Callable[[Tensor], Tensor]:
         """Return linear mapping from `input_dim` to `output_dim`."""
         w = self.function_rand(self.input_dim, self.output_dim)
-        b = self.function_rand(self.output_dim)
-        return lambda a: self.pad(a @ w + b)
+        # b = self.function_rand(self.output_dim)
+        # return lambda a: self.pad(a @ w + b)
+        return lambda a: self.pad(a @ w)
