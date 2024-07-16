@@ -13,11 +13,9 @@ class LinearGenerator(BaseGenerator):
         function_rand=torch.randn,
     ) -> None:
         """Generates data using a linear mapping from `input_dim` to `output_dim`."""
-        super().__init__()
+        super().__init__(input_dim, x_rand)
         assert input_dim >= output_dim
-        self.input_dim = input_dim
         self.output_dim = output_dim
-        self.rand = x_rand
         self.function_rand = function_rand
 
     def pad(self, x: Tensor) -> Tensor:
