@@ -1,2 +1,4 @@
 from .base_generator import BaseGenerator
 from .linear_generator import LinearGenerator
+from .curriculum_generator import CurriculumGenerator
+from .linear_curriculum_generator import LinearCurriculumGenerator
