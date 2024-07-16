@@ -1,19 +1,19 @@
 from typing import Callable
+from dataclasses import dataclass
 import torch
 from torch import Tensor
 
 
+@dataclass
 class BaseGenerator:
-    def __init__(self, rand=torch.randn) -> None:
-        """Base class for data generator."""
-        self.input_dim = None
-        self.rand = rand
+    input_dim: int
+    rand: Callable[[int], Tensor] = torch.randn
 
     def get_function(self) -> Callable[[Tensor], Tensor]:
         """Returns function for model to learn."""
         raise NotImplementedError()
 
-    def generate(self, n_examples: int) -> tuple[Tensor, Tensor]:
+    def generate(self, n_examples: int) -> Tensor:
         """Returns `x`, where `x` has `n_examples` examples of function inputs and outputs."""
         f = self.get_function()
         x = []
@@ -24,6 +24,6 @@ class BaseGenerator:
         x.append(self.rand(self.input_dim))
         return torch.stack(x)
 
-    def generate_batch(self, n_batch: int, n_examples: int) -> tuple[Tensor, Tensor]:
+    def generate_batch(self, n_batch: int, n_examples: int) -> Tensor:
         """Returns a batch from `generate` method."""
         return torch.stack([self.generate(n_examples) for _ in range(n_batch)])
