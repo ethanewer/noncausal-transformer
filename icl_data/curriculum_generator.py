@@ -24,6 +24,9 @@ class CurriculumGenerator:
             self.start_dim += self.increment
             self.n_iters = 0
 
+        if self.start_dim > self.end_dim:
+            self.start_dim = self.end_dim
+
         if increment_n_iters:
             self.n_iters += 1
 
