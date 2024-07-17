@@ -25,6 +25,9 @@ class DecoderTransformer(nn.Module):
                 ln_f=nn.LayerNorm(config.n_embd, bias=config.bias),
             )
         )
+        
+        self.transformer.h[0].attn.is_causal = True
+
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.transformer.wte.weight = self.lm_head.weight
 

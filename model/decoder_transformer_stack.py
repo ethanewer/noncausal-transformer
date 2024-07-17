@@ -13,6 +13,7 @@ class DecoderTransformerStack(nn.Module):
         self.is_causal = config.is_causal
         self.loss_fn = self.config.loss_fn
         self.stack = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
+        self.stack[0].attn.is_causal = True
         self.apply(self.__init_weights)
         for p_name, p in self.named_parameters():
             if p_name.endswith("c_proj.weight"):
