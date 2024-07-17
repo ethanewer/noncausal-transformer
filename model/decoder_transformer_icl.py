@@ -13,6 +13,7 @@ class DecoderTransformerStack_ICL(nn.Module):
         self.is_causal = config.is_causal
         self.loss_fn = self.config.loss_fn
         self.stack = nn.ModuleList([Block(config) for _ in range(config.n_layer)])
+        self.stack[0].attn.is_causal = True
         
         # new updates based on the paper
         self.wpe = nn.Embedding(config.block_size, config.n_embd)
