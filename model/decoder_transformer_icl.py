@@ -1,4 +1,5 @@
 import math
+from typing import Sequence
 import torch
 from torch import nn, optim, Tensor
 from .base import *
@@ -42,7 +43,7 @@ class DecoderTransformerStack_ICL(nn.Module):
         x: Tensor,
         y: Tensor | None,
         backward: bool,
-        forward_idxs: list[int] | None,
+        forward_idxs: Sequence[int] | None,
     ) -> tuple[Tensor, float | None]:
         """Helper method for forward. Causal forward is O(N^2.)"""
         for block in self.stack:
@@ -72,7 +73,7 @@ class DecoderTransformerStack_ICL(nn.Module):
         x: Tensor,
         y: Tensor | None,
         backward: bool,
-        forward_idxs: list[int] | None,
+        forward_idxs: Sequence[int] | None,
     ) -> tuple[Tensor, float | None]:
         """Helper method for forward. Noncausal forward is O(N^3.)"""
         if forward_idxs is None:
@@ -110,7 +111,7 @@ class DecoderTransformerStack_ICL(nn.Module):
         x: Tensor,
         y=None,
         backward=False,
-        forward_idxs: list[int] | None = None,
+        forward_idxs: Sequence[int] | None = None,
     ) -> tuple[Tensor, float | None]:
         assert (
             x.shape[1] <= self.config.block_size
