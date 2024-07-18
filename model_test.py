@@ -6,6 +6,7 @@ from model import (
     DecoderTransformer,
     DecoderTransformerStack,
     DecoderTransformerConfig,
+    Block,
 )
 
 
@@ -277,15 +278,55 @@ def time_transformer_stack_iter(device: str) -> None:
     print(f"transformer stack iteration time: {time.time() - t0:.2f}s")
 
 
+def test_noncausal_optimization(verbose=False):
+    config1 = DecoderTransformerConfig(
+        block_size=256,
+        n_head=4,
+        n_embd=512,
+        is_causal=False,
+    )
+
+    config2 = DecoderTransformerConfig(
+        block_size=256,
+        n_head=4,
+        n_embd=512,
+        is_causal=True,
+    )
+
+    block1 = Block(config1)
+    block2 = Block(config2)
+    
+    with torch.no_grad():
+        for p1, p2 in zip(block1.parameters(), block2.parameters()):
+            p1.copy_(p2)
+    
+    x = torch.randn(8, 256, 512)
+    
+    y1 = []
+    for t in range(x.shape[1]):
+        x_t = x[:, : t + 1, :]
+        y_t = block1(x_t)[:, -1, :]
+        y1.append(y_t)
+    y1 = torch.stack(y1, dim=1)
+
+    y2 = block2(x)
+
+    if verbose:
+        print(f"R^2: {(1 - F.mse_loss(y1, y2) / torch.var(y1)).item():.4f}")
+
+    assert torch.allclose(y1, y2, rtol=1e-5, atol=1e-6)
+
+
+
 if __name__ == "__main__":
     verbose = "-v" in sys.argv
-
     test_decoder_transformer_stack(verbose)
     test_decoder_transformer(verbose)
     test_decoder_transformer_stack_gradients(verbose)
     test_decoder_transformer_gradients(verbose)
     test_decoder_transformer_stack_forward_idxs(verbose)
     test_decoder_transformer_stack_gradients_forward_idxs(verbose)
+    test_noncausal_optimization(verbose)
     print("Numeric tests passed")
 
     if torch.cuda.is_available():
