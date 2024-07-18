@@ -74,6 +74,7 @@ class DecoderTransformerStackICL(nn.Module):
         y: Tensor | None,
         backward: bool,
         forward_idxs: Sequence[int] | None,
+        fast_backward: bool,
     ) -> tuple[Tensor, float | None]:
         """Helper method for forward. Noncausal forward is O(N^3.)"""
         if forward_idxs is None:
@@ -113,6 +114,7 @@ class DecoderTransformerStackICL(nn.Module):
         y=None,
         backward=False,
         forward_idxs: Sequence[int] | None = None,
+        fast_backward=False,
     ) -> tuple[Tensor, float | None]:
         assert (
             x.shape[1] <= self.config.block_size
