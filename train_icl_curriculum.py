@@ -183,6 +183,7 @@ if __name__ == "__main__":
             noncausal_model, noncausal_optimizer, "noncausal"
         )
         start_i = min(i1, i2)
+        data_generator.start_dim = 5 + start_i // 2000
     else:
         print("starting from scratch")
         start_i = 0
@@ -196,7 +197,7 @@ if __name__ == "__main__":
 
     t0 = time.time()
 
-    for i in range(2):
+    for i in range(start_i, MAX_ITERS):
         data = data_generator.generate_batch(BATCH_SIZE).to(device)
         forward_idxs = [i for i in range(data.shape[1]) if i % 2 == 0]
 
