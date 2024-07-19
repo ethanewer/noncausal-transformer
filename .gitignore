@@ -1,4 +1,6 @@
 __pycache__/
 .vscode/
+.ipynb_checkpoints
 analysis/
-out/
+out/checkpoints/*.pt
+out/results/*.npz
