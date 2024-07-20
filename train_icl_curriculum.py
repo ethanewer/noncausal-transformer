@@ -44,6 +44,10 @@ MODEL_ARCHITECTURES = {
 
 MODEL_ARCHITECTURE = MODEL_ARCHITECTURES["tiny"]
 
+CURRICULUM_START = 5
+CURRICULUM_INTERVAL = 2000
+CURRICULUM_STEP = 1
+
 
 def get_lr(iter_num: int) -> float:
     if iter_num < WARMUP_ITERS:
@@ -152,7 +156,10 @@ if __name__ == "__main__":
     )
 
     data_generator = LinearCurriculumGenerator(
-        start_dim=5, end_dim=20, interval=2000, increment=1
+        start_dim=CURRICULUM_START,
+        end_dim=N_DIM,
+        interval=CURRICULUM_INTERVAL,
+        increment=CURRICULUM_STEP,
     )
 
     causal_model = DecoderTransformerStackICL(causal_config).to(device)
@@ -183,7 +190,10 @@ if __name__ == "__main__":
             noncausal_model, noncausal_optimizer, "noncausal"
         )
         start_i = min(i1, i2)
-        data_generator.start_dim = 5 + start_i // 2000
+        data_generator.start_dim = min(
+            CURRICULUM_START + start_i * (CURRICULUM_INTERVAL // CURRICULUM_INTERVAL),
+            N_DIM,
+        )
     else:
         print("starting from scratch")
         start_i = 0
@@ -238,4 +248,4 @@ if __name__ == "__main__":
                 mean_loss = np.mean(losses[k][-EVAL_INTERVAL:])
                 print(f"{name} loss: {mean_loss:.3f}", end=", ")
 
-            print(f"time: {dt:.1f}s")
+            print(f"curriculum dim: {data_generator.start_dim}, time: {dt:.1f}s")
