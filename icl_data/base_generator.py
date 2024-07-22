@@ -21,7 +21,6 @@ class BaseGenerator:
             x.append(self.rand(self.input_dim))
             x.append(f(x[-1]))
 
-        x.append(self.rand(self.input_dim))
         return torch.stack(x)
 
     def generate_batch(self, n_batch: int, n_examples: int) -> Tensor:

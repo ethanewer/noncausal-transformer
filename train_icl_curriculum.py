@@ -110,6 +110,20 @@ def save_results(
     )
 
 
+def load_results(
+    results_name: str,
+    i: int | None = None,
+) -> tuple[list[int], list[list[int]]]:
+    """Loads losses and pointwise losses."""
+    results = np.load(f"{OUT_DIR}/results/{results_name}.npz")
+    losses = results["losses"]
+    pointwise_losses = results["pointwise_losses"]
+    if i is not None:
+        losses = losses[:i]
+        pointwise_losses = pointwise_losses[:i]
+    return losses.tolist(), pointwise_losses.tolist()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="ICL training with curriculum learning"
@@ -194,16 +208,22 @@ if __name__ == "__main__":
             CURRICULUM_START + start_i * (CURRICULUM_INTERVAL // CURRICULUM_INTERVAL),
             N_DIM,
         )
+        causal_losses, causal_pointwise_losses = load_results("causal", start_i)
+        noncausal_losses, noncausal_pointwise_losses = load_results(
+            "noncausal", start_i
+        )
+        losses = [causal_losses, noncausal_losses]
+        pointwise_losses = [causal_pointwise_losses, noncausal_pointwise_losses]
     else:
         print("starting from scratch")
         start_i = 0
+        losses = [[], []]
+        pointwise_losses = [[], []]
 
     models_and_optimizers = [
         (causal_model, causal_optimizer),
         (noncausal_model, noncausal_optimizer),
     ]
-    losses = [[], []]
-    pointwise_losses = [[], []]
 
     t0 = time.time()
 
@@ -227,7 +247,7 @@ if __name__ == "__main__":
             optimizer.step()
             optimizer.zero_grad()
 
-            losses[k].append(loss.detach().cpu())
+            losses[k].append(loss.detach().cpu().item())
 
             unreduced_loss = F.mse_loss(
                 y[:, forward_idxs, 0], y_hat[:, :, 0], reduction="none"
@@ -248,4 +268,6 @@ if __name__ == "__main__":
                 mean_loss = np.mean(losses[k][-EVAL_INTERVAL:])
                 print(f"{name} loss: {mean_loss:.3f}", end=", ")
 
-            print(f"curriculum dim: {data_generator.start_dim}, time: {dt:.1f}s")
+            print(
+                f"curriculum dim: {data_generator.start_dim}, lr: {lr:.3e}, time: {dt:.1f}s"
+            )
