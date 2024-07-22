@@ -1,6 +1,6 @@
 __pycache__/
 .vscode/
 .ipynb_checkpoints
-analysis/
-out/checkpoints/*.pt
-out/results/*.npz
+old_icl/analysis/
+old_icl/out/checkpoints/*.pt
+old_icl/out/results/*.npz
